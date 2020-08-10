@@ -14,3 +14,10 @@ jobs:
           java-version: 1.8
       - name: Build with Maven
         run: mvn -B package --file pom.xml -DskipTests
+      - name: staging artifact
+        run: mkdir staging && cp target/neo4j-spark-connector-full*.jar staging
+      - name: staging artifact
+        uses: actions/upload-artifact@v2
+          with:
+            name: Package
+            path: staging
