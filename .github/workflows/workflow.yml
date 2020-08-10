@@ -18,6 +18,6 @@ jobs:
         run: mkdir staging && cp target/neo4j-spark-connector-full*.jar staging
       - name: staging artifact
         uses: actions/upload-artifact@v2
-          with:
-            name: Package
-            path: staging
+        with:
+          name: Package
+          path: staging
