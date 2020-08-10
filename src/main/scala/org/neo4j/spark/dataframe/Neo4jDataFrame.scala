@@ -11,7 +11,7 @@ import org.neo4j.driver.types.{Type, TypeSystem}
 import org.neo4j.spark.Neo4jConfig
 import org.neo4j.spark.cypher.CypherHelpers._
 import org.neo4j.spark.rdd.{Neo4jPartition, Neo4jRowRDD}
-import org.neo4j.spark.utils.Neo4jSessionAwareIterator
+import org.neo4j.spark.utils.{Neo4jSessionAwareIterator, Neo4jUtils}
 import org.neo4j.spark.utils.Neo4jUtils._
 
 import scala.collection.JavaConverters._
@@ -25,10 +25,21 @@ object Neo4jDataFrame {
                     target: (String, Seq[String]),
                     renamedColumns: Map[String, String] = Map.empty,
                     partitions: Int = 1,
-                    unwindBatchSize: Int = 10000): Unit = {
+                    unwindBatchSize: Int = 10000,
+                    nodeOperation: String = "merge"): Unit = {
 
-    createNodes(sc, dataFrame, source, renamedColumns, partitions, unwindBatchSize, true)
-    createNodes(sc, dataFrame, target, renamedColumns, partitions, unwindBatchSize, true)
+    nodeOperation match {
+      case "merge" => {
+        createNodes(sc, dataFrame, source, renamedColumns, partitions, unwindBatchSize, true)
+        createNodes(sc, dataFrame, target, renamedColumns, partitions, unwindBatchSize, true)
+      }
+      case "create" => {
+        createNodes(sc, dataFrame, source, renamedColumns, partitions, unwindBatchSize)
+        createNodes(sc, dataFrame, target, renamedColumns, partitions, unwindBatchSize)
+      }
+      case "match" => // ignore
+      case _ => throw new UnsupportedOperationException(s"Admitted values for ingestionNodes are `merge`, `create`, `match`; you provided $nodeOperation")
+    }
 
     val sourceKey: String = renamedColumns.getOrElse(source._2.head, source._2.head).quote
     val targetKey: String = renamedColumns.getOrElse(target._2.head, target._2.head).quote
@@ -111,7 +122,7 @@ object Neo4jDataFrame {
       case y: Iterator[_] =>
         toJava(y.toIterable)
       case _ =>
-        x
+        Neo4jUtils.convertFromSpark(x)
     }
   }
 
