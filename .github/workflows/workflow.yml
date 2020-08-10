@@ -22,6 +22,6 @@ jobs:
           name: Package
           path: staging
       - name: Publish package
-          run: mvn -B deploy -DskipTests
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B deploy -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
