@@ -24,18 +24,17 @@ object Neo4jDataFrame {
                     relationship: (String, Seq[String]),
                     target: (String, Seq[String]),
                     renamedColumns: Map[String, String] = Map.empty,
-                    partitions: Int = 1,
                     unwindBatchSize: Int = 10000,
                     nodeOperation: String = "merge"): Unit = {
 
     nodeOperation match {
       case "merge" => {
-        createNodes(sc, dataFrame, source, renamedColumns, partitions, unwindBatchSize, true)
-        createNodes(sc, dataFrame, target, renamedColumns, partitions, unwindBatchSize, true)
+        createNodes(sc, dataFrame, source, renamedColumns, unwindBatchSize, true)
+        createNodes(sc, dataFrame, target, renamedColumns, unwindBatchSize, true)
       }
       case "create" => {
-        createNodes(sc, dataFrame, source, renamedColumns, partitions, unwindBatchSize)
-        createNodes(sc, dataFrame, target, renamedColumns, partitions, unwindBatchSize)
+        createNodes(sc, dataFrame, source, renamedColumns, unwindBatchSize)
+        createNodes(sc, dataFrame, target, renamedColumns, unwindBatchSize)
       }
       case "match" => // ignore
       case _ => throw new UnsupportedOperationException(s"Admitted values for ingestionNodes are `merge`, `create`, `match`; you provided $nodeOperation")
@@ -50,7 +49,7 @@ object Neo4jDataFrame {
         |MERGE (source)-[rel:${relationship._1.quote}]->(target) ON CREATE SET rel += row.relationship
         |""".stripMargin
 
-    execute(sc, dataFrame, partitions, unwindBatchSize, relStatement, (r: Row) => Map(
+    execute(sc, dataFrame, unwindBatchSize, relStatement, (r: Row) => Map(
       "source" -> source._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava,
       "target" -> target._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava,
       "relationship" -> relationship._2.map(c => (c, toJava(r.getAs(c)))).toMap.asJava).asJava
@@ -59,12 +58,11 @@ object Neo4jDataFrame {
 
   private def execute(sc: SparkContext,
                       dataFrame: DataFrame,
-                      partitions: Int,
                       unwindBatchSize: Int,
                       statement: String,
                       mapFun: Row => Any) {
     val config = Neo4jConfig(sc.getConf)
-    dataFrame.repartition(partitions).foreachPartition(rows => {
+    dataFrame.foreachPartition(rows => {
       val driver: Driver = config.driver()
       val session = driver.session(config.sessionConfig())
       try {
@@ -86,7 +84,6 @@ object Neo4jDataFrame {
                   dataFrame: DataFrame,
                   nodes: (String, Seq[String]),
                   renamedColumns: Map[String, String] = Map.empty,
-                  partitions: Int = 1,
                   unwindBatchSize: Int = 10000,
                   merge: Boolean = false): Unit = {
     val nodeLabel: String = renamedColumns.getOrElse(nodes._2.head, nodes._2.head)
@@ -95,7 +92,7 @@ object Neo4jDataFrame {
        |${if (merge) "MERGE" else "CREATE"} (node:${nodes._1.quote} {${nodeLabel.quote} : row.node_properties.${nodeLabel.quote}})
        |SET node += row.node_properties
        |""".stripMargin
-    execute(sc, dataFrame, partitions, unwindBatchSize, createStatement, (r: Row) => Map(
+    execute(sc, dataFrame, unwindBatchSize, createStatement, (r: Row) => Map(
       "node_properties" -> nodes._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava).asJava
     )
   }
